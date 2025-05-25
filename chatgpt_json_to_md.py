@@ -35,11 +35,86 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
 Message = Dict[str, Any]
+
+
+# ---------------------------------------------------------------------------
+# Citation processing helpers
+# ---------------------------------------------------------------------------
+
+def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List[Dict[str, Any]]]:
+    """Process citations in content and return updated content with references list."""
+    content_references = metadata.get("content_references", [])
+    if not content_references:
+        return content, []
+    
+    references = []
+    processed_content = content
+    
+    # Process each content reference
+    for ref in content_references:
+        matched_text = ref.get("matched_text", "")
+        alt_text = ref.get("alt", "")
+        
+        # Skip empty matches or sources footnotes
+        if not matched_text or ref.get("type") == "sources_footnote":
+            continue
+            
+        # Replace the cite tag with the alt text (which contains markdown links)
+        if matched_text in processed_content and alt_text:
+            processed_content = processed_content.replace(matched_text, alt_text)
+        
+        # Collect reference items for the references section
+        items = ref.get("items", [])
+        for item in items:
+            if isinstance(item, dict) and "title" in item and "url" in item:
+                ref_entry = {
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "attribution": item.get("attribution", ""),
+                    "snippet": item.get("snippet", "")
+                }
+                # Avoid duplicates
+                if ref_entry not in references:
+                    references.append(ref_entry)
+    
+    return processed_content, references
+
+
+def format_references_section(references: List[Dict[str, Any]]) -> str:
+    """Format references into a markdown section."""
+    if not references:
+        return ""
+    
+    lines = ["", "## References", ""]
+    
+    for i, ref in enumerate(references, 1):
+        title = ref.get("title", "Untitled")
+        url = ref.get("url", "")
+        attribution = ref.get("attribution", "")
+        snippet = ref.get("snippet", "")
+        
+        # Format reference entry
+        ref_line = f"{i}. **{title}**"
+        if attribution:
+            ref_line += f" - {attribution}"
+        if url:
+            ref_line += f"  \n   [{url}]({url})"
+        if snippet:
+            # Truncate snippet if too long
+            if len(snippet) > 200:
+                snippet = snippet[:200] + "..."
+            ref_line += f"  \n   _{snippet}_"
+        
+        lines.append(ref_line)
+        lines.append("")
+    
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +124,7 @@ Message = Dict[str, Any]
 def json_messages_to_markdown(messages: List[Message]) -> str:
     """Convert list of ChatGPT message objects to a Markdown string directly."""
     md_lines = ["# ChatGPT Conversation", ""]
+    all_references: List[Dict[str, Any]] = []
     
     for msg in messages:
         if msg.get("type") == "canvas":
@@ -77,6 +153,7 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
         else:
             role = msg.get("role", "assistant")
             content = msg.get("content", "")
+            metadata = msg.get("metadata", {})
             
             # Handle direct code content
             if isinstance(content, dict) and "type" in content and "content" in content:
@@ -152,6 +229,11 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
                 content = "".join([str(item) for item in cast(List[Any], content)])
             elif not isinstance(content, str):
                 content = f"```json\n{json.dumps(content, indent=2)}\n```"
+            
+            # Process citations if content is a string
+            if isinstance(content, str) and metadata:
+                content, message_references = process_citations(content, metadata)
+                all_references.extend(message_references)
                 
             header_map = {"user": "User", "assistant": "Assistant", "system": "System"}
             header = header_map.get(role, role.capitalize())
@@ -162,6 +244,11 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
                 content,
                 ""
             ])
+    
+    # Add references section at the end
+    references_section = format_references_section(all_references)
+    if references_section:
+        md_lines.append(references_section)
     
     return "\n".join(md_lines)
 
@@ -344,6 +431,10 @@ def extract_messages_from_mapping(mapping: Dict[str, Any]) -> List[Message]:
                 content_text = str(content_obj)
             
             message_obj["content"] = content_text
+            
+            # Preserve metadata for citation processing
+            if metadata:
+                message_obj["metadata"] = metadata
             
             # Check for canvas messages via content
             if (message_obj["role"] == "assistant" and 
