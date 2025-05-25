@@ -59,6 +59,9 @@ def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List
     for ref in content_references:
         matched_text = ref.get("matched_text", "")
         alt_text = ref.get("alt", "")
+        invalid = ref.get("invalid", False)
+        if invalid:
+            alt_text = " "
         
         # Skip empty matches or sources footnotes
         if not matched_text or ref.get("type") == "sources_footnote":
