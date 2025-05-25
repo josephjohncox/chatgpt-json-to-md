@@ -35,10 +35,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, cast
 
 Message = Dict[str, Any]
 
@@ -50,13 +49,12 @@ Message = Dict[str, Any]
 def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List[Dict[str, Any]]]:
     """Process citations in content and return updated content with references list."""
     content_references = metadata.get("content_references", [])
-    if not content_references:
-        return content, []
+    search_result_groups = metadata.get("search_result_groups", [])
     
     references = []
     processed_content = content
     
-    # Process each content reference
+    # Process content references (inline citations)
     for ref in content_references:
         matched_text = ref.get("matched_text", "")
         alt_text = ref.get("alt", "")
@@ -82,6 +80,22 @@ def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List
                 # Avoid duplicates
                 if ref_entry not in references:
                     references.append(ref_entry)
+    
+    # Process search result groups (additional search results)
+    for group in search_result_groups:
+        if isinstance(group, dict) and "entries" in group:
+            entries = group.get("entries", [])
+            for entry in entries:
+                if isinstance(entry, dict) and "title" in entry and "url" in entry:
+                    ref_entry = {
+                        "title": entry.get("title", ""),
+                        "url": entry.get("url", ""),
+                        "attribution": entry.get("attribution", ""),
+                        "snippet": entry.get("snippet", "")
+                    }
+                    # Avoid duplicates
+                    if ref_entry not in references:
+                        references.append(ref_entry)
     
     return processed_content, references
 
@@ -124,7 +138,6 @@ def format_references_section(references: List[Dict[str, Any]]) -> str:
 def json_messages_to_markdown(messages: List[Message]) -> str:
     """Convert list of ChatGPT message objects to a Markdown string directly."""
     md_lines = ["# ChatGPT Conversation", ""]
-    all_references: List[Dict[str, Any]] = []
     
     for msg in messages:
         if msg.get("type") == "canvas":
@@ -231,9 +244,9 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
                 content = f"```json\n{json.dumps(content, indent=2)}\n```"
             
             # Process citations if content is a string
+            message_references = []
             if isinstance(content, str) and metadata:
                 content, message_references = process_citations(content, metadata)
-                all_references.extend(message_references)
                 
             header_map = {"user": "User", "assistant": "Assistant", "system": "System"}
             header = header_map.get(role, role.capitalize())
@@ -244,11 +257,13 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
                 content,
                 ""
             ])
-    
-    # Add references section at the end
-    references_section = format_references_section(all_references)
-    if references_section:
-        md_lines.append(references_section)
+            
+            # Add references for this message if any exist
+            if message_references:
+                references_section = format_references_section(message_references)
+                if references_section:
+                    md_lines.append(references_section)
+                    md_lines.append("")  # Extra spacing after references
     
     return "\n".join(md_lines)
 

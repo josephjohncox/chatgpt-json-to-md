@@ -2,6 +2,7 @@
 name = "chatgptjson-md"
 version = "0.1.0"
 description = ""
+license = { file = "LICENSE" }
 authors = [
     {name = "Joseph Cox",email = "abovemind@gmail.com"}
 ]
