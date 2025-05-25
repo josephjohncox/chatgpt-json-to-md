@@ -38,6 +38,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, cast
+import re
 
 Message = Dict[str, Any]
 
@@ -63,8 +64,8 @@ def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List
         if not matched_text or ref.get("type") == "sources_footnote":
             continue
             
-        # Replace the cite tag with the alt text (which contains markdown links)
-        if matched_text in processed_content and alt_text:
+        # Replace the cite tag with the alt text directly
+        if matched_text and alt_text and matched_text in processed_content:
             processed_content = processed_content.replace(matched_text, alt_text)
         
         # Collect reference items for the references section
