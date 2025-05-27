@@ -14,6 +14,19 @@ Converts ChatGPT conversation exports (JSON) to Markdown format.
 
 No dependencies required - uses Python standard library only.
 
+## Getting ChatGPT Conversation Data
+
+### Option 1: Bookmarklet (Recommended)
+
+1. Setup and json export bookmarklet (https://github.com/pionxzh/chatgpt-exporter)
+2. Go to a ChatGPT conversation and click the bookmarklet
+3. Download or copy the JSON data
+
+### Option 2: Manual Export
+1. Go to ChatGPT Settings → Data controls → Export data
+2. Download the ZIP file when ready
+3. Extract and find `conversations.json`
+
 ## Usage
 
 ```bash
@@ -146,6 +159,29 @@ python chatgpt_json_to_md.py canvas.json -o code.md
 for file in *.json; do
   python chatgpt_json_to_md.py "$file" -o "${file%.json}.md"
 done
+```
+
+## Complete Workflow
+
+### Using Bookmarklet (Easiest)
+```bash
+# 1. Set up bookmarklet (one-time setup)
+# See bookmarklet_instructions.md
+
+# 2. Extract conversation from web page
+# Click bookmarklet on ChatGPT conversation page
+# Choose "Download JSON file"
+
+# 3. Convert to Markdown
+python chatgpt_json_to_md.py your_conversation.json -o output.md
+```
+
+### Using Official Export
+```bash
+# 1. Export from ChatGPT Settings → Data controls → Export data
+# 2. Extract conversations.json from ZIP file
+# 3. Convert to Markdown
+python chatgpt_json_to_md.py conversations.json -o output.md
 ```
 
 ## Requirements
