@@ -47,6 +47,51 @@ Message = Dict[str, Any]
 # Citation processing helpers
 # ---------------------------------------------------------------------------
 
+
+def extract_bracket_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List[Dict[str, Any]]]:
+    """Extract bracket-style citations like 【12†L123-L131】 and build references from metadata."""
+    citations = metadata.get("citations", [])
+    references = []
+    processed_content = content
+    
+    # Find all bracket citations in the content
+    bracket_pattern = r'【(\d+)†L\d+-L\d+】'
+    bracket_matches = re.finditer(bracket_pattern, content)
+    
+    # Extract references from citations metadata and create citation links
+    citation_map = {}
+    for i, citation in enumerate(citations):
+        if isinstance(citation, dict) and "metadata" in citation:
+            cite_meta = citation["metadata"]
+            if isinstance(cite_meta, dict):
+                title = cite_meta.get("title", "Untitled")
+                ref_entry = {
+                    "title": title,
+                    "url": cite_meta.get("url", ""),
+                    "type": cite_meta.get("type", ""),
+                    "text": cite_meta.get("text", ""),
+                    "pub_date": cite_meta.get("pub_date", "")
+                }
+                # Avoid duplicates
+                if ref_entry not in references:
+                    references.append(ref_entry)
+                    ref_num = len(references)
+                    citation_map[i + 1] = ref_num  # Map citation index to reference number
+    
+    # Replace bracket citations with links to references
+    for match in reversed(list(bracket_matches)):  # Reverse to maintain positions
+        full_citation = match.group(0)
+        citation_num = match.group(1)
+        
+        # Create link to reference (using HTML anchor)
+        if int(citation_num) in citation_map:
+            ref_num = citation_map[int(citation_num)]
+            link_text = f"[{full_citation}](#ref{ref_num})"
+            processed_content = processed_content[:match.start()] + link_text + processed_content[match.end():]
+    
+    return processed_content, references
+
+
 def process_citations(content: str, metadata: Dict[str, Any]) -> tuple[str, List[Dict[str, Any]]]:
     """Process citations in content and return updated content with references list."""
     content_references = metadata.get("content_references", [])
@@ -116,18 +161,28 @@ def format_references_section(references: List[Dict[str, Any]]) -> str:
         url = ref.get("url", "")
         attribution = ref.get("attribution", "")
         snippet = ref.get("snippet", "")
+        text = ref.get("text", "")
+        ref_type = ref.get("type", "")
+        pub_date = ref.get("pub_date", "")
         
-        # Format reference entry
-        ref_line = f"{i}. **{title}**"
+        # Format reference entry with HTML anchor
+        ref_line = f'<a id="ref{i}"></a>\n### {i}. {title}'
+        if ref_type:
+            ref_line += f" ({ref_type})"
         if attribution:
             ref_line += f" - {attribution}"
+        if pub_date:
+            ref_line += f" - {pub_date}"
         if url:
             ref_line += f"  \n   [{url}]({url})"
-        if snippet:
-            # Truncate snippet if too long
-            if len(snippet) > 200:
-                snippet = snippet[:200] + "..."
-            ref_line += f"  \n   _{snippet}_"
+        
+        # Use text if available, otherwise snippet
+        content = text if text else snippet
+        if content:
+            # Truncate content if too long
+            if len(content) > 200:
+                content = content[:200] + "..."
+            ref_line += f"  \n   _{content}_"
         
         lines.append(ref_line)
         lines.append("")
@@ -250,7 +305,14 @@ def json_messages_to_markdown(messages: List[Message]) -> str:
             # Process citations if content is a string
             message_references = []
             if isinstance(content, str) and metadata:
-                content, message_references = process_citations(content, metadata)
+                # First check for bracket-style citations in metadata
+                if "citations" in metadata:
+                    content, bracket_refs = extract_bracket_citations(content, metadata)
+                    message_references.extend(bracket_refs)
+                
+                # Then process other metadata-based citations
+                content, other_refs = process_citations(content, metadata)
+                message_references.extend(other_refs)
                 
             header_map = {"user": "User", "assistant": "Assistant", "system": "System"}
             header = header_map.get(role, role.capitalize())
