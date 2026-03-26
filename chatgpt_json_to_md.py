@@ -727,6 +727,8 @@ def extract_messages_from_mapping(mapping: Dict[str, Any]) -> List[Message]:
                     # Canvas content
                     message_obj["type"] = "canvas"
                     message_obj["canvas"] = content_obj
+                    if message_obj.get("kind") == "tool_usage":
+                        message_obj.pop("kind", None)
                     content_text = f"Canvas: {content_obj.get('name', 'unnamed')}"
                 elif content_type == "thoughts":
                     # Format thoughts in a more readable way
@@ -760,6 +762,8 @@ def extract_messages_from_mapping(mapping: Dict[str, Any]) -> List[Message]:
                         if canvas_payload:
                             message_obj["type"] = "canvas"
                             message_obj["canvas"] = canvas_payload
+                            if message_obj.get("kind") == "tool_usage":
+                                message_obj.pop("kind", None)
                             content_text = f"Canvas: {canvas_payload['name']}"
                         else:
                             language = content_obj.get("language")
@@ -813,6 +817,8 @@ def extract_messages_from_mapping(mapping: Dict[str, Any]) -> List[Message]:
                         # This is a canvas code block or document payload.
                         message_obj["type"] = "canvas"
                         message_obj["canvas"] = canvas_payload
+                        if message_obj.get("kind") == "tool_usage":
+                            message_obj.pop("kind", None)
                     # Handle content with updates/replacements
                     elif "updates" in content_json and isinstance(content_json["updates"], list):
                         updates = content_json["updates"]

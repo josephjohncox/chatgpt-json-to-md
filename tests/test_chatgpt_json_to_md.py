@@ -404,6 +404,45 @@ class MarkdownRenderingTests(unittest.TestCase):
         self.assertIn("Assistant Tool Usage", markdown)
         self.assertIn("only_tools", markdown)
 
+    def test_canmore_canvas_creation_is_rendered_as_artifact(self) -> None:
+        mapping = {
+            "root": {
+                "parent": None,
+                "children": [],
+                "message": {
+                    "author": {"role": "assistant"},
+                    "recipient": "canmore.create_textdoc",
+                    "channel": "commentary",
+                    "metadata": {
+                        "message_type": "next",
+                        "can_save": False,
+                    },
+                    "content": {
+                        "content_type": "code",
+                        "language": "json",
+                        "response_format_name": None,
+                        "text": json.dumps(
+                            {
+                                "name": "research_architecture",
+                                "type": "document",
+                                "content": "# Research Architecture\n\n## Purpose\n\nA practical architecture.",
+                            }
+                        ),
+                    },
+                },
+            }
+        }
+
+        messages = extract_messages_from_mapping(mapping)
+        markdown = json_messages_to_markdown(messages, title="Canvas Creation")
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].get("type"), "canvas")
+        self.assertNotEqual(messages[0].get("kind"), "tool_usage")
+        self.assertIn("### Artifact", markdown)
+        self.assertIn("```markdown", markdown)
+        self.assertIn("# Research Architecture", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()
